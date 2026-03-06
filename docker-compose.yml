@@ -1,0 +1,98 @@
+# Docker Compose - ML Platform Services
+# Run with: docker-compose up
+
+services:
+  # MinIO - S3 Compatible Storage for MLflow
+  minio:
+    image: minio/minio:latest
+    container_name: ml-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ml-network
+
+  # MLflow - Experiment Tracking Server
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.14.0
+    container_name: ml-mlflow
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlflow.db --default-artifact-root s3://mlflow/artifacts
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_db:/app
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - ml-network
+
+  # Training Pipeline - Data Fetch + Preprocess + Train
+  training:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+    container_name: ml-training
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      mlflow:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    networks:
+      - ml-network
+
+  # Inference Service - FastAPI
+  inference:
+    build:
+      context: .
+      dockerfile: Dockerfile.serve
+    container_name: ml-inference
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_REGION: us-east-1
+    ports:
+      - "8000:8000"
+    depends_on:
+      mlflow:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    networks:
+      - ml-network
+
+volumes:
+  minio_data:
+    driver: local
+  mlflow_db:
+    driver: local
+
+networks:
+  ml-network:
+    driver: bridge

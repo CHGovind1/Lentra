@@ -1,0 +1,83 @@
+# ML Platform Configuration
+# All parameters are externalized - no hardcoded values in source code
+
+data:
+  # Data source
+  url: "https://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/german.data"
+  raw_path: "data/raw/german.data"
+  processed_path: "data/processed/german_processed.csv"
+  
+  # Column names (21 features + 1 target)
+  column_names:
+    - checking_status
+    - duration
+    - credit_history
+    - purpose
+    - credit_amount
+    - savings_status
+    - installment_commitment
+    - employment
+    - personal_status
+    - other_parties
+    - residence_since
+    - property_magnitude
+    - age
+    - other_payment_plans
+    - housing
+    - existing_credits
+    - job
+    - num_dependents
+    - own_telephone
+    - foreign_worker
+    - class
+
+pipeline:
+  # Random seed for reproducibility
+  random_seed: 42
+  
+  # Train/validation split
+  train_split: 0.8
+  
+  # Target remapping
+  target_mapping:
+    original_good: 1
+    original_bad: 2
+
+model:
+  # Model type: logistic_regression, random_forest, xgboost, lightgbm
+  type: "xgboost"
+  
+  # Hyperparameters
+  params:
+    n_estimators: 100
+    max_depth: 5
+    learning_rate: 0.1
+    random_state: 42
+
+mlflow:
+  # MLflow tracking server
+  tracking_uri: "http://mlflow:5000"
+  
+  # Experiment name
+  experiment_name: "german-credit-risk"
+  
+  # Run name prefix
+  run_name_prefix: "xgboost-run"
+  
+  # Model artifact name
+  model_name: "german-credit-model"
+
+minio:
+  # MinIO S3 configuration
+  endpoint: "http://minio:9000"
+  bucket: "mlflow"
+  artifacts_path: "artifacts"
+  access_key: "minioadmin"
+  secret_key: "minioadmin"
+  region: "us-east-1"
+
+api:
+  # FastAPI server
+  host: "0.0.0.0"
+  port: 8000
+  model_stage: "Production"
