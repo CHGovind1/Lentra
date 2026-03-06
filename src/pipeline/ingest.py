@@ -35,7 +35,7 @@ def get_data_path(config: dict) -> Path:
 
 
 def download_data(config: dict) -> str:
-    """Download data from configured URL."""
+    """Download_data from configured URL."""
     data_url = config['data']['url']
     data_path = get_data_path(config)
     
