@@ -1,77 +1,62 @@
-"""Feature_Engineering Module - Create derived features"""
+"""Feature engineering shared by training and inference."""
+from __future__ import annotations
+
+import numpy as np
 import pandas as pd
-import yaml
-import os
-from pathlib import Path
 
 
-def load_config(config_path: str = "config/config.yaml") -> dict:
-    """Load configuration from YAML file."""
-    if not os.path.isabs(config_path):
-        current = Path(__file__).resolve()
-        project_root = current.parent.parent.parent
-        config_path = project_root / config_path
-    
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+def _resolve_age_group_bins(config: dict) -> tuple[list[float], list[str], bool]:
+    age_cfg = config.get("features", {}).get("age_group", {})
+    raw_bins = age_cfg.get("bins", [0, 25, 35, 50, None])
+    bins: list[float] = []
+    for value in raw_bins:
+        bins.append(np.inf if value is None else float(value))
+
+    labels = age_cfg.get("labels", ["young", "adult", "mid_age", "senior"])
+    right_inclusive = bool(age_cfg.get("right_inclusive", False))
+    return bins, labels, right_inclusive
 
 
-def add_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Add engineered features to the dataframe."""
-    df = df.copy()
-    
-    # Feature 1: Monthly installment burden
-    # credit_amount / duration = monthly payment
-    df['monthly_payment'] = df['credit_amount'] / df['duration']
-    
-    # Feature 2: Debt load proxy
-    # installment_commitment * credit_amount
-    df['debt_load'] = df['installment_commitment'] * df['credit_amount']
-    
-    # Feature 3: Age brackets
-    def get_age_bracket(age):
-        if age < 25:
-            return 'young'
-        elif age < 35:
-            return 'adult'
-        elif age < 50:
-            return 'middle_aged'
+def add_engineered_features(df: pd.DataFrame, config: dict) -> pd.DataFrame:
+    """Create configured derived features from base German Credit fields."""
+    features = df.copy()
+
+    numeric_features = config["features"]["engineered_numeric_columns"]
+    categorical_features = config["features"]["engineered_categorical_columns"]
+
+    duration = features["duration"].clip(lower=1)
+    existing_credits = features["existing_credits"].clip(lower=1)
+
+    for feature_name in numeric_features:
+        if feature_name == "monthly_payment":
+            features["monthly_payment"] = features["credit_amount"] / duration
+        elif feature_name == "debt_burden":
+            features["debt_burden"] = (
+                features["installment_commitment"] * features["credit_amount"]
+            )
+        elif feature_name == "credit_per_existing_credit":
+            features["credit_per_existing_credit"] = (
+                features["credit_amount"] / existing_credits
+            )
         else:
-            return 'senior'
-    
-    df['age_bracket'] = df['age'].apply(get_age_bracket)
-    
-    # Feature 4: Credit amount to age ratio
-    df['credit_to_age'] = df['credit_amount'] / df['age']
-    
-    print(f"Added 4 engineered features. New shape: {df.shape}")
-    return df
+            raise ValueError(f"Unsupported engineered numeric feature: {feature_name}")
 
+    for feature_name in categorical_features:
+        if feature_name == "age_group":
+            bins, labels, right_inclusive = _resolve_age_group_bins(config)
+            age_group = pd.cut(
+                features["age"],
+                bins=bins,
+                labels=labels,
+                right=right_inclusive,
+                include_lowest=True,
+            )
+            features["age_group"] = (
+                age_group.astype("string").fillna("unknown").astype(str)
+            )
+        else:
+            raise ValueError(
+                f"Unsupported engineered categorical feature: {feature_name}"
+            )
 
-def get_feature_columns() -> list:
-    """Get list of feature columns for training."""
-    return [
-        'checking_status', 'duration', 'credit_history', 'purpose',
-        'credit_amount', 'savings_status', 'employment', 'installment_commitment',
-        'personal_status', 'other_parties', 'residence_since', 'property_magnitude',
-        'age', 'other_payment_plans', 'housing', 'existing_credits', 'job',
-        'num_dependents', 'own_telephone', 'foreign_worker',
-        # Engineered features
-        'monthly_payment', 'debt_load', 'age_bracket', 'credit_to_age'
-    ]
-
-
-if __name__ == "__main__":
-    # Test the feature engineering
-    config = load_config()
-    
-    # Load processed data
-    data_path = Path(config['data']['processed_path'])
-    if not data_path.is_absolute():
-        project_root = Path(__file__).resolve().parent.parent.parent
-        data_path = project_root / data_path
-    
-    df = pd.read_csv(data_path)
-    df = add_features(df)
-    print(df.head())
-    print(f"Features: {list(df.columns)}")
+    return features

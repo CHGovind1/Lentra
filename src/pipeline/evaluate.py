@@ -1,50 +1,31 @@
-"""Model Evaluation Module - Compute and log metrics"""
-import pandas as pd
+"""Model evaluation utilities."""
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
-import yaml
-import os
-from pathlib import Path
-from sklearn.metrics import (
-    roc_auc_score, f1_score, precision_score, recall_score,
-    confusion_matrix, classification_report
-)
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 
 
-def load_config(config_path: str = "config/config.yaml") -> dict:
-    """Load configuration from YAML file."""
-    if not os.path.isabs(config_path):
-        current = Path(__file__).resolve()
-        project_root = current.parent.parent.parent
-        config_path = project_root / config_path
-    
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
-
-
-def evaluate_model(model, X_val, y_val) -> dict:
-    """Compute evaluation metrics."""
-    y_pred = model.predict(X_val)
-    y_prob = model.predict_proba(X_val)[:, 1]
-    
-    metrics = {
-        "auc_roc": roc_auc_score(y_val, y_prob),
-        "f1": f1_score(y_val, y_pred),
-        "precision": precision_score(y_val, y_pred),
-        "recall": recall_score(y_val, y_pred),
+def compute_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    y_prob: np.ndarray | None,
+) -> dict[str, Any]:
+    """Compute classification metrics for validation data."""
+    metrics: dict[str, Any] = {
+        "precision": float(precision_score(y_true, y_pred, zero_division=0)),
+        "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+        "f1": float(f1_score(y_true, y_pred, zero_division=0)),
+        "accuracy": float(accuracy_score(y_true, y_pred)),
     }
-    
+    if y_prob is not None:
+        metrics["auc_roc"] = float(roc_auc_score(y_true, y_prob))
     return metrics
 
 
-def print_evaluation(metrics: dict):
-    """Print evaluation metrics in a readable format."""
-    print("\n" + "="*50)
-    print("MODEL EVALUATION METRICS")
-    print("="*50)
-    for metric, value in metrics.items():
-        print(f"{metric.upper():15s}: {value:.4f}")
-    print("="*50 + "\n")
-
-
-if __name__ == "__main__":
-    print("Evaluation module - import this in train.py to use")
+def print_metrics(metrics: dict[str, Any]) -> None:
+    """Print metrics in a compact format."""
+    print("[evaluate] Validation metrics")
+    for key, value in metrics.items():
+        print(f"  - {key}: {value:.4f}")

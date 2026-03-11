@@ -1,67 +1,60 @@
-"""Data Ingestion Module - Downloads german.data from UCI"""
-import urllib.request
+"""Data ingestion utilities for the German Credit dataset."""
+from __future__ import annotations
+
 from pathlib import Path
-import yaml
-import os
+import urllib.error
+import urllib.request
+
+from src.pipeline.common import load_config, resolve_path
 
 
-def load_config(config_path: str = "config/config.yaml") -> dict:
-    """Load configuration from YAML file."""
-    # Get absolute path to config
-    if not os.path.isabs(config_path):
-        # Get project root (parent of src directory = LentraTask)
-        # src/pipeline/ingest.py -> parent.parent.parent = LentraTask
-        current = Path(__file__).resolve()
-        project_root = current.parent.parent.parent
-        config_path = project_root / config_path
-    
-    print(f"Loading config from: {config_path}")
-    with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+def get_raw_data_path(config: dict) -> Path:
+    """Return the resolved path of the raw dataset file."""
+    return resolve_path(config["data"]["raw_path"])
 
 
-def get_data_path(config: dict) -> Path:
-    """Get absolute path to data file."""
-    raw_path = config['data']['raw_path']
-    path = Path(raw_path)
-    
-    # If relative path, make it absolute from project root
-    if not path.is_absolute():
-        current = Path(__file__).resolve()
-        project_root = current.parent.parent.parent
-        path = project_root / raw_path
-    
-    return path
+def download_data(config: dict, force: bool = False) -> Path:
+    """Download the dataset from UCI into the configured raw path."""
+    data_url = config["data"]["url"]
+    timeout = int(config["data"].get("download_timeout_seconds", 30))
+    data_path = get_raw_data_path(config)
 
+    if data_path.exists() and not force:
+        print(f"[ingest] Using existing dataset at {data_path}")
+        return data_path
 
-def download_data(config: dict) -> str:
-    """Download_data from configured URL."""
-    data_url = config['data']['url']
-    data_path = get_data_path(config)
-    
-    # Create directory
     data_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    print(f"Downloading data from: {data_url}")
-    print(f"Saving to: {data_path}")
-    
-    urllib.request.urlretrieve(data_url, data_path)
-    print(f"Data downloaded successfully!")
-    return str(data_path)
+    print(f"[ingest] Downloading dataset from {data_url}")
+    with urllib.request.urlopen(data_url, timeout=timeout) as response:
+        data_path.write_bytes(response.read())
+
+    print(f"[ingest] Dataset saved to {data_path}")
+    return data_path
 
 
-def load_data(config: dict) -> str:
-    """Load data - download if not exists."""
-    data_path = get_data_path(config)
-    
-    if data_path.exists():
-        print(f"Data already exists at: {data_path}")
-        return str(data_path)
-    else:
-        return download_data(config)
+def ensure_data_available(config: dict, force_download: bool = False) -> Path:
+    """Guarantee that the raw dataset is available locally."""
+    data_path = get_raw_data_path(config)
+    try:
+        return download_data(config, force=force_download)
+    except (urllib.error.URLError, TimeoutError) as exc:
+        if data_path.exists():
+            print(
+                f"[ingest] Download failed ({exc}); "
+                f"falling back to local file at {data_path}"
+            )
+            return data_path
+        raise RuntimeError(
+            "Dataset download failed and no local copy is available."
+        ) from exc
+
+
+def main() -> None:
+    """CLI entrypoint."""
+    config = load_config()
+    data_path = ensure_data_available(config)
+    print(f"[ingest] Data ready at {data_path}")
 
 
 if __name__ == "__main__":
-    config = load_config()
-    data_path = load_data(config)
-    print(f"Data ready at: {data_path}")
+    main()
