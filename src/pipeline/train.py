@@ -1,4 +1,4 @@
-"""Training entrypoint for the German Credit classification pipeline."""
+"""Training  entrypoint for the German Credit classification pipeline."""
 from __future__ import annotations
 
 import argparse

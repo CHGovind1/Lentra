@@ -18,7 +18,7 @@ def _resolve_age_group_bins(config: dict) -> tuple[list[float], list[str], bool]
 
 
 def add_engineered_features(df: pd.DataFrame, config: dict) -> pd.DataFrame:
-    """Create configured derived features from base German Credit fields."""
+    """Create  configured derived features from base German Credit fields."""
     features = df.copy()
 
     numeric_features = config["features"]["engineered_numeric_columns"]

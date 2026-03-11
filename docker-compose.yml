@@ -1,5 +1,5 @@
 # Docker Compose - ML Platform Services
-# Run with: docker-compose up
+# Run  with: docker-compose up
 
 services:
   # MinIO - S3 Compatible Storage for MLflow

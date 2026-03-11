@@ -10,7 +10,7 @@ from src.pipeline.schema import validate_config_schema, validate_dataframe_featu
 
 
 def get_data_path(config: dict, key: str) -> Path:
-    """Resolve a configured data path key."""
+    """Resolve  a configured data path key."""
     return resolve_path(config["data"][key])
 
 

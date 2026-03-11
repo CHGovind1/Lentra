@@ -33,7 +33,7 @@ def download_data(config: dict, force: bool = False) -> Path:
 
 
 def ensure_data_available(config: dict, force_download: bool = False) -> Path:
-    """Guarantee that the raw dataset is available locally."""
+    """Guarantee  that the raw dataset is available locally."""
     data_path = get_raw_data_path(config)
     try:
         return download_data(config, force=force_download)

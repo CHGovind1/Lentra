@@ -1,4 +1,4 @@
-"""Shared helpers for pipeline modules."""
+"""Shared  helpers for pipeline modules."""
 from __future__ import annotations
 
 from datetime import datetime, timezone

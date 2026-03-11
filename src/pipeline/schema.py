@@ -1,4 +1,4 @@
-"""Canonical feature reference for the German Credit dataset."""
+"""Canonical  feature reference for the German Credit dataset."""
 from __future__ import annotations
 
 from typing import Any
